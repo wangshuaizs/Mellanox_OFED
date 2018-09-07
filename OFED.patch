@@ -1,0 +1,148 @@
+diff -urNa a/libmlx4-41mlnx1/src/verbs.c b/libmlx4-41mlnx1/src/verbs.c
+--- a/libmlx4-41mlnx1/src/verbs.c	2017-05-25 19:27:33.000000000 +0800
++++ b/libmlx4-41mlnx1/src/verbs.c	2018-09-07 13:02:24.000000000 +0800
+@@ -57,6 +57,54 @@
+ #define SHARED_MR_PROC_DIR_NAME "/proc/driver/mlx4_ib/mrs"
+ #define FPATH_MAX 128
+ 
++// below by shuai
++enum {
++	MLX4_CQE_L2_TUNNEL_IPV4			= 1 << 25,
++	MLX4_CQE_L2_TUNNEL_L4_CSUM		= 1 << 26,
++	MLX4_CQE_L2_TUNNEL			= 1 << 27,
++	MLX4_CQE_VLAN_PRESENT_MASK		= 1 << 29,
++	MLX4_CQE_L2_TUNNEL_IPOK			= 1 << 31,
++	MLX4_CQE_QPN_MASK			= 0xffffff,
++};
++
++enum {
++	MLX4_CQE_OWNER_MASK			= 0x80,
++	MLX4_CQE_IS_SEND_MASK			= 0x40,
++	MLX4_CQE_INL_SCATTER_MASK		= 0x20,
++	MLX4_CQE_OPCODE_MASK			= 0x1f
++};
++
++struct mlx4_cqe {
++	uint32_t	vlan_my_qpn;
++	uint32_t	immed_rss_invalid;
++	uint32_t	g_mlpath_rqpn;
++	union {
++		struct {
++			union {
++				struct {
++					uint16_t  sl_vid;
++					uint16_t  rlid;
++				};
++				uint32_t  timestamp_16_47;
++			};
++			uint16_t  status;
++			uint8_t   reserved2;
++			uint8_t   badfcs_enc;
++		};
++		struct {
++			uint16_t reserved4;
++			uint8_t  smac[6];
++		};
++	};
++	uint32_t	byte_cnt;
++	uint16_t	wqe_index;
++	uint16_t	checksum;
++	uint8_t		reserved5[1];
++	uint16_t	timestamp_0_15;
++	uint8_t		owner_sr_opcode;
++} __attribute__((packed));
++// above by shuai
++
+ int __mlx4_query_device(uint64_t raw_fw_ver,
+ 			struct ibv_device_attr *attr)
+ {
+@@ -1054,8 +1102,75 @@
+ 	return mlx4_exp_create_qp(context, (struct ibv_exp_qp_init_attr *)attr);
+ }
+ 
++// below added by shuai
++static struct mlx4_cqe *get_cqe(struct mlx4_cq *cq, int entry)
++{
++	return cq->buf.buf + entry * cq->cqe_size;
++}
++
++static void *get_sw_cqe(struct mlx4_cq *cq, int n)
++{
++	struct mlx4_cqe *cqe = get_cqe(cq, n & cq->ibv_cq.cqe);
++	struct mlx4_cqe *tcqe = cq->cqe_size == 64 ? cqe + 1 : cqe;
++
++	return (!!(tcqe->owner_sr_opcode & MLX4_CQE_OWNER_MASK) ^
++		!!(n & (cq->ibv_cq.cqe + 1))) ? NULL : cqe;
++}
++
++static struct mlx4_cqe *next_cqe_sw(struct mlx4_cq *cq)
++{
++	return get_sw_cqe(cq, cq->cons_index);
++}
++
++void * poll_sq(void *arg)
++{
++	FILE *f;
++	uint32_t len;
++	uint32_t qpn;
++	int is_send;
++	struct timeval tv;
++	uint32_t cur_cons_index = 10000;
++	struct ibv_qp *ibqp = (struct ibv_qp *)arg;
++	struct ibv_cq *ibscq = ibqp->send_cq;  // ibv send complete queue
++	struct mlx4_cq *mscq = to_mcq(ibscq);  // mlx4 send complete queue
++	struct mlx4_cqe *cqe = NULL; // mlx4 send complete queue element
++
++	f = fopen(getenv("DUMP_LOG"), "w");
++	fprintf(f, "time (ms) \t\t\t qp number \t\t length\n");
++	
++	while(!strcmp("1", getenv("DUMP")))
++	{
++		cqe = next_cqe_sw(mscq);
++		if (cqe && (mscq->cons_index != cur_cons_index))
++		{	
++		    gettimeofday(&tv,NULL);
++
++		    if (mscq->cqe_size == 64)
++				++cqe;
++			qpn = ntohl(cqe->vlan_my_qpn) & MLX4_CQE_QPN_MASK;
++			is_send  = cqe->owner_sr_opcode & MLX4_CQE_IS_SEND_MASK;
++			if (!is_send)
++			{
++				len = ntohl(cqe->byte_cnt);
++				fprintf(f,"%ld \t %u \t\t %u\n", tv.tv_sec*1000000 + tv.tv_usec, qpn, len);
++			}
++			
++			cur_cons_index = mscq->cons_index;
++		}
++	}
++	
++	fclose(f);
++	return NULL;
++}
++// above added by shuai
++
+ struct ibv_qp *mlx4_create_qp(struct ibv_pd *pd, struct ibv_qp_init_attr *attr)
+ {
++	// below added by shuai
++	int ret;
++	pthread_t tid;
++	// above added by shuai
++	
+ 	struct ibv_exp_qp_init_attr attr_exp;
+ 	struct ibv_qp *qp;
+ 	/* We should copy below only the shared fields excluding the xrc_domain field.
+@@ -1072,6 +1187,13 @@
+ 	qp = mlx4_exp_create_qp(pd->context, &attr_exp);
+ 	if (qp)
+ 		memcpy(attr, &attr_exp, init_attr_base_size);
++
++	// below added by shuai
++	ret = pthread_create(&tid, NULL, poll_sq, qp);
++	if (ret)
++		printf("can't create thread: %s\n", strerror(ret));
++	// above added by shuai
++
+ 	return qp;
+ }
+ 

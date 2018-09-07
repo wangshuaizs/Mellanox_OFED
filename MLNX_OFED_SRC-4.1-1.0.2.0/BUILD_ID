@@ -1,0 +1,165 @@
+OFED-internal-4.1-1.0.2:
+
+ar_mgr:
+osm_plugins/ar_mgr/ar_mgr-1.0-0.34.g9bd7c9a.tar.gz
+
+cc_mgr:
+osm_plugins/cc_mgr/cc_mgr-1.0-0.33.g9bd7c9a.tar.gz
+
+dapl:
+dapl.git mlnx_ofed_4_0
+commit bdb055900059d1b8d5ee8cdfb457ca653eb9dd2d
+dump_pr:
+osm_plugins/dump_pr//dump_pr-1.0-0.29.g9bd7c9a.tar.gz
+
+fabric-collector:
+fabric_collector//fabric-collector-1.1.0.MLNX20170103.89bb2aa.tar.gz
+
+hcoll:
+mlnx_ofed_hcol/hcoll-3.8.1649-1.src.rpm
+
+ibacm:
+mlnx_ofed/ibacm.git mlnx_ofed_4_1
+commit b0d53cf13358eb0c14665765b0170a37768463ff
+ibacm_ssa:
+mlnx_ofed_ssa/acm/ibacm_ssa-0.0.9.3.MLNX20151203.50eb579.tar.gz
+
+ibdump:
+sniffer/sniffer-5.0.0-1/ibdump/linux/ibdump-5.0.0-1.tgz
+
+ibsim:
+mlnx_ofed_ibsim/ibsim-0.6mlnx1-0.8.g9d76581.tar.gz
+
+ibssa:
+mlnx_ofed_ssa/distrib/ibssa-0.0.9.3.MLNX20151203.50eb579.tar.gz
+
+ibutils:
+ofed-1.5.3-rpms/ibutils/ibutils-1.5.7.1-0.12.gdcaeae2.tar.gz
+
+ibutils2:
+ibutils2/ibutils2-2.1.1-0.91.MLNX20170612.g2e0d52a.tar.gz
+
+infiniband-diags:
+mlnx_ofed_infiniband_diags/infiniband-diags-1.6.7.MLNX20170511.7595646.tar.gz
+
+iser:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+isert:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+kernel-mft:
+mlnx_ofed_mft/kernel-mft-4.7.0-41.src.rpm
+
+knem:
+knem.git mellanox-master
+commit 4faa2978ad0339c50dd6df336d0a4182647b624b
+libibcm:
+mlnx_ofed/libibcm.git mlnx_ofed_4_1
+commit e3e9fffe4d2d2f730110a7bdeb7da7b8ea97e51e
+libibmad:
+mlnx_ofed_libibmad/libibmad-1.3.13.MLNX20170511.267a441.tar.gz
+
+libibprof:
+mlnx_ofed_libibprof/libibprof-1.1.41-1.src.rpm
+
+libibumad:
+mlnx_ofed_libibumad/libibumad-13.10.2.MLNX20170511.dcc9f7a.tar.gz
+
+libibverbs:
+mlnx_ofed/libibverbs.git mlnx_ofed_4_1
+commit a23bf787eff96af4c05d6e5f0e201dba80db114e
+libmlx4:
+mlnx_ofed/libmlx4.git mlnx_ofed_4_1
+commit d945a7eeb52e319b2199990e6602a9fee0646371
+libmlx5:
+mlnx_ofed/libmlx5.git mlnx_ofed_4_1
+commit 71822e375014c7f81dec3e4eca06f366846eaf1a
+libopensmssa:
+mlnx_ofed_ssa/plugin/libopensmssa-0.0.9.3.MLNX20151203.50eb579.tar.gz
+
+librdmacm:
+mlnx_ofed/librdmacm.git mlnx_ofed_4_1
+commit 1297178df9b07030d84a042d417cb61fa65e62a1
+librxe:
+mlnx_ofed/librxe.git master
+commit 607460456c717c3b65428367676cacb5495ac005
+libvma:
+vma/source_rpms//libvma-8.3.7-0.src.rpm
+
+mlnx-en:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+mlnx-ethtool:
+upstream/ethtool.git for-upstream
+commit ac0cf295abe0c0832f0711fed66ab9601c8b2513
+mlnx-nfsrdma:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+mlnx-nvme:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+mlnx-ofa_kernel:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+mlnx-rdma-rxe:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+mpi-selector:
+ofed-1.5.3-rpms/mpi-selector/mpi-selector-1.0.3-1.src.rpm
+
+mpitests:
+mlnx_ofed_mpitest/mpitests-3.2.19-acade41.src.rpm
+
+mstflint:
+mlnx_ofed_mstflint/mstflint-4.7.0-1.6.g26037b7.tar.gz
+
+multiperf:
+mlnx_ofed_multiperf/multiperf-3.0-0.10.gda89e8c.tar.gz
+
+mxm:
+mlnx_ofed_mxm/mxm-3.6.3102-1.src.rpm
+
+ofed-docs:
+docs.git mlnx_ofed-4.0
+commit 3d1b0afb7bc190ae5f362223043f76b2b45971cc
+
+openmpi:
+mlnx_ofed_ompi_1.8/openmpi-2.1.2a1-1.src.rpm
+
+opensm:
+mlnx_ofed_opensm/opensm-4.9.0.MLNX20170607.280b8f7.tar.gz
+
+perftest:
+mlnx_ofed_perftest/perftest-4.1-0.4.g16dbf63.tar.gz
+
+qperf:
+mlnx_ofed_qperf/qperf-0.4.9.tar.gz
+
+sharp:
+mlnx_ofed_sharp/sharp-1.3.1.MLNX20170625.859dc24.tar.gz
+
+sockperf:
+sockperf/sockperf-3.1-14.gita9f6056282ef.src.rpm
+
+srp:
+mlnx_ofed/mlnx-ofa_kernel-4.0.git mlnx_ofed_4_1
+commit c22af8878c71966728f6ac38d963190f5222b2ec
+
+srptools:
+srptools/srptools-41mlnx1-4.src.rpm
+
+ucx:
+mlnx_ofed_ucx/ucx-1.2.2947-1.src.rpm
+
+ofed-scripts:
+ofed_scripts.git mlnx_ofed_4_1
+commit 9374cd08c7f82628cceb7166d1237be36614b3b2
+
