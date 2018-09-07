@@ -15,4 +15,4 @@ sudo ./install.pl
 
 # Additions
 
-The file [untar.sh](./untar.sh) is also offered to extract files from all archives.
+The file [untar.sh](./tool/untar.sh) is also offered to extract files from all archives.
