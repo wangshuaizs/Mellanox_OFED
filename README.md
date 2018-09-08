@@ -13,6 +13,11 @@ You can choose to install from the [source codes](./MLNX_OFED_SRC-4.1-1.0.2.0) i
 sudo ./install.pl
 ```
 
+Some environment variables have to be set before establishing RDMA connection:
+
++ __DUMP_LOG__ : The path to be used to log outputs;
++ __DUMP__ : The flag to signal whether or not to print;
+
 # Additions
 
 The file [untar.sh](./tool/untar.sh) is also offered to extract files from all archives.
