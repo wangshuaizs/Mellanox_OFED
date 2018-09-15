@@ -1,123 +1,105 @@
-diff -urNa a/libmlx4-41mlnx1/src/verbs.c b/libmlx4-41mlnx1/src/verbs.c
---- a/libmlx4-41mlnx1/src/verbs.c	2017-05-25 19:27:33.000000000 +0800
-+++ b/libmlx4-41mlnx1/src/verbs.c	2018-09-07 13:02:24.000000000 +0800
-@@ -57,6 +57,54 @@
+diff -urNa a/src/verbs.c b/src/verbs.c
+--- a/src/verbs.c	2017-05-25 19:27:33.000000000 +0800
++++ b/src/verbs.c	2018-09-15 13:10:52.824747931 +0800
+@@ -57,6 +57,11 @@
  #define SHARED_MR_PROC_DIR_NAME "/proc/driver/mlx4_ib/mrs"
  #define FPATH_MAX 128
  
 +// below by shuai
-+enum {
-+	MLX4_CQE_L2_TUNNEL_IPV4			= 1 << 25,
-+	MLX4_CQE_L2_TUNNEL_L4_CSUM		= 1 << 26,
-+	MLX4_CQE_L2_TUNNEL			= 1 << 27,
-+	MLX4_CQE_VLAN_PRESENT_MASK		= 1 << 29,
-+	MLX4_CQE_L2_TUNNEL_IPOK			= 1 << 31,
-+	MLX4_CQE_QPN_MASK			= 0xffffff,
-+};
-+
-+enum {
-+	MLX4_CQE_OWNER_MASK			= 0x80,
-+	MLX4_CQE_IS_SEND_MASK			= 0x40,
-+	MLX4_CQE_INL_SCATTER_MASK		= 0x20,
-+	MLX4_CQE_OPCODE_MASK			= 0x1f
-+};
-+
-+struct mlx4_cqe {
-+	uint32_t	vlan_my_qpn;
-+	uint32_t	immed_rss_invalid;
-+	uint32_t	g_mlpath_rqpn;
-+	union {
-+		struct {
-+			union {
-+				struct {
-+					uint16_t  sl_vid;
-+					uint16_t  rlid;
-+				};
-+				uint32_t  timestamp_16_47;
-+			};
-+			uint16_t  status;
-+			uint8_t   reserved2;
-+			uint8_t   badfcs_enc;
-+		};
-+		struct {
-+			uint16_t reserved4;
-+			uint8_t  smac[6];
-+		};
-+	};
-+	uint32_t	byte_cnt;
-+	uint16_t	wqe_index;
-+	uint16_t	checksum;
-+	uint8_t		reserved5[1];
-+	uint16_t	timestamp_0_15;
-+	uint8_t		owner_sr_opcode;
-+} __attribute__((packed));
++#include <time.h>
++#include <sched.h>
 +// above by shuai
 +
  int __mlx4_query_device(uint64_t raw_fw_ver,
  			struct ibv_device_attr *attr)
  {
-@@ -1054,8 +1102,75 @@
+@@ -1054,8 +1059,101 @@
  	return mlx4_exp_create_qp(context, (struct ibv_exp_qp_init_attr *)attr);
  }
  
 +// below added by shuai
-+static struct mlx4_cqe *get_cqe(struct mlx4_cq *cq, int entry)
-+{
-+	return cq->buf.buf + entry * cq->cqe_size;
-+}
-+
-+static void *get_sw_cqe(struct mlx4_cq *cq, int n)
-+{
-+	struct mlx4_cqe *cqe = get_cqe(cq, n & cq->ibv_cq.cqe);
-+	struct mlx4_cqe *tcqe = cq->cqe_size == 64 ? cqe + 1 : cqe;
-+
-+	return (!!(tcqe->owner_sr_opcode & MLX4_CQE_OWNER_MASK) ^
-+		!!(n & (cq->ibv_cq.cqe + 1))) ? NULL : cqe;
-+}
-+
-+static struct mlx4_cqe *next_cqe_sw(struct mlx4_cq *cq)
-+{
-+	return get_sw_cqe(cq, cq->cons_index);
-+}
-+
 +void * poll_sq(void *arg)
 +{
++	cpu_set_t get; 
++	cpu_set_t mask;
++	char const* var_temp;
++	static int core_index = 0;
 +	FILE *f;
-+	uint32_t len;
-+	uint32_t qpn;
-+	int is_send;
-+	struct timeval tv;
-+	uint32_t cur_cons_index = 10000;
++	char file_name[100];
++	unsigned *head, *tail;
++	int wqe_cnt, wqe_shift;
++	unsigned old_tail, i, last_old_tail = 0;
++	struct timespec tv_start, tv_end;
++	void *buffer = NULL;
 +	struct ibv_qp *ibqp = (struct ibv_qp *)arg;
-+	struct ibv_cq *ibscq = ibqp->send_cq;  // ibv send complete queue
-+	struct mlx4_cq *mscq = to_mcq(ibscq);  // mlx4 send complete queue
-+	struct mlx4_cqe *cqe = NULL; // mlx4 send complete queue element
++	struct mlx4_qp *mqp = to_mqp(ibqp);
++	struct mlx4_wq *send_queue = &mqp->sq;
 +
-+	f = fopen(getenv("DUMP_LOG"), "w");
-+	fprintf(f, "time (ms) \t\t\t qp number \t\t length\n");
-+	
-+	while(!strcmp("1", getenv("DUMP")))
++	var_temp = getenv("CORE_ID");
++	if (var_temp != NULL)
 +	{
-+		cqe = next_cqe_sw(mscq);
-+		if (cqe && (mscq->cons_index != cur_cons_index))
-+		{	
-+		    gettimeofday(&tv,NULL);
-+
-+		    if (mscq->cqe_size == 64)
-+				++cqe;
-+			qpn = ntohl(cqe->vlan_my_qpn) & MLX4_CQE_QPN_MASK;
-+			is_send  = cqe->owner_sr_opcode & MLX4_CQE_IS_SEND_MASK;
-+			if (!is_send)
-+			{
-+				len = ntohl(cqe->byte_cnt);
-+				fprintf(f,"%ld \t %u \t\t %u\n", tv.tv_sec*1000000 + tv.tv_usec, qpn, len);
-+			}
-+			
-+			cur_cons_index = mscq->cons_index;
++		CPU_ZERO(&mask);
++		CPU_SET(atoi(var_temp) + core_index,&mask);
++		core_index++;
++		if (sched_setaffinity(0, sizeof(mask), &mask) == -1)
++		{
++		    printf("Warning: could not set CPU affinity, continuing...\n");
++		}
++		CPU_ZERO(&get);
++		if (sched_getaffinity(0, sizeof(get), &get) == -1)
++		{
++		    printf("Warning: cound not get thread affinity, continuing...\n");
++		}
++		for (i = 0; i < 32; i++)
++		{
++	        if (CPU_ISSET(i, &get))
++	        {
++	            printf("Driver poll_sq thread is running processor : %u\n", i);
++	        }
 +		}
 +	}
++
++	var_temp = getenv("DUMP_DIR");
++	if (var_temp == NULL)
++		snprintf(file_name, 100, "/tmp/raw_qpn_%d", ibqp->qp_num);
++	else
++		snprintf(file_name, 100, "%s/raw_qpn_%d", var_temp, ibqp->qp_num);
++	f = fopen(file_name, "w");	
++	clock_gettime(CLOCK_REALTIME, &tv_start);
++	fprintf(f, "%ld\n    start time (ns)       end time (ns)         sqe index    length (Bytes)\n", 
++		tv_start.tv_sec*1000000000 + tv_start.tv_nsec);
++
++	head = &send_queue->head;
++	tail = &send_queue->tail;
++	buffer = mqp->sq.buf;
++	wqe_cnt = mqp->sq.wqe_cnt - 1;
++	wqe_shift = mqp->sq.wqe_shift;
 +	
++	while(1)
++	{
++		do
++		{
++			clock_gettime(CLOCK_REALTIME, &tv_start);
++		} while (*head == *tail);
++
++		old_tail = *tail;
++		for (i = last_old_tail + 1; i < old_tail; i++)
++		{
++			// sizeof(struct mlx4_wqe_ctrl_seg) + sizeof(struct mlx4_wqe_raddr_seg) = 16 + 16
++			fprintf(f,"%19d  %19d  %16d  %16u\n", 0, 0, i, *((uint32_t *)(buffer + ((i & wqe_cnt) << wqe_shift) + 32)));
++		}
++		last_old_tail = old_tail;			
++		do{
++			clock_gettime(CLOCK_REALTIME, &tv_end);
++		}while(*tail == old_tail);
++					
++		// only for IBV_WR_RDMA_WRITE_WITH_IMM / IBV_WR_RDMA_WRITE
++		fprintf(f,"%19ld  %19ld  %16u  %16u\n", tv_start.tv_sec*1000000000 + tv_start.tv_nsec, 
++			tv_end.tv_sec*1000000000 + tv_end.tv_nsec, old_tail, 
++			*((uint32_t *)(buffer + ((old_tail & wqe_cnt) << wqe_shift) + 32)));
++	}
 +	fclose(f);
++	printf("Exiting poll_sq thread...\n");
 +	return NULL;
 +}
 +// above added by shuai
@@ -127,20 +109,25 @@ diff -urNa a/libmlx4-41mlnx1/src/verbs.c b/libmlx4-41mlnx1/src/verbs.c
 +	// below added by shuai
 +	int ret;
 +	pthread_t tid;
++	char const* var_temp;
 +	// above added by shuai
 +	
  	struct ibv_exp_qp_init_attr attr_exp;
  	struct ibv_qp *qp;
  	/* We should copy below only the shared fields excluding the xrc_domain field.
-@@ -1072,6 +1187,13 @@
+@@ -1072,6 +1170,17 @@
  	qp = mlx4_exp_create_qp(pd->context, &attr_exp);
  	if (qp)
  		memcpy(attr, &attr_exp, init_attr_base_size);
 +
 +	// below added by shuai
-+	ret = pthread_create(&tid, NULL, poll_sq, qp);
-+	if (ret)
-+		printf("can't create thread: %s\n", strerror(ret));
++	var_temp = getenv("DUMP");
++	if (var_temp != NULL)
++	{
++		ret = pthread_create(&tid, NULL, poll_sq, qp);
++		if (ret)
++			printf("can't create thread: %s\n", strerror(ret));
++	}
 +	// above added by shuai
 +
  	return qp;
