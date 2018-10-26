@@ -117,21 +117,22 @@ def main():
                 break
             next_start_time = int(unbroken_line.split()[0])
 
-            for i in xrange(distance) :
-                modifing_line = linecache.getline(tracefile, line_cur + i)
-                modifing_line = modifing_line.split()
-                period[i] = int(float(next_start_time - last_end_time) * broken_line_byte[i] / all_broken_line_bytes)
-                left_time = 0
-                right_time = period[0]
-                for ii in xrange(i) :
-                    left_time = left_time + period[ii]
-                    right_time = right_time + period[ii + 1] 
+            if all_broken_line_bytes != 0:
+                for i in xrange(distance) :
+                    modifing_line = linecache.getline(tracefile, line_cur + i)
+                    modifing_line = modifing_line.split()
+                    period[i] = int(float(next_start_time - last_end_time) * broken_line_byte[i] / all_broken_line_bytes)
+                    left_time = 0
+                    right_time = period[0]
+                    for ii in xrange(i) :
+                        left_time = left_time + period[ii]
+                        right_time = right_time + period[ii + 1] 
 
-                modifing_line[0] = str(last_end_time + left_time - time_0)
-                modifing_line[1] = str(last_end_time + right_time - time_0)
+                    modifing_line[0] = str(last_end_time + left_time - time_0)
+                    modifing_line[1] = str(last_end_time + right_time - time_0)
 
-                byte = socket.ntohl(int(modifing_line[3]))
-                print("%16s  %16s %16s %16d   1" % (modifing_line[0], modifing_line[1], modifing_line[2], 0 if byte == 2147483648 else byte), file=outputf)
+                    byte = socket.ntohl(int(modifing_line[3]))
+                    print("%16s  %16s %16s %16d   1" % (modifing_line[0], modifing_line[1], modifing_line[2], 0 if byte == 2147483648 else byte), file=outputf)
 
             line_cur = line_cur + distance - 1
         else :

@@ -1,6 +1,6 @@
-diff -urNa a/src/verbs.c b/src/verbs.c
---- a/src/verbs.c	2017-05-25 19:27:33.000000000 +0800
-+++ b/src/verbs.c	2018-09-15 13:10:52.824747931 +0800
+diff -urNa a/SOURCES/libmlx4-41mlnx1/src/verbs.c b/SOURCES/libmlx4-41mlnx1/src/verbs.c
+--- a/SOURCES/libmlx4-41mlnx1/src/verbs.c	2017-05-25 19:27:33.000000000 +0800
++++ b/SOURCES/libmlx4-41mlnx1/src/verbs.c	2018-10-26 18:31:20.072279194 +0800
 @@ -57,6 +57,11 @@
  #define SHARED_MR_PROC_DIR_NAME "/proc/driver/mlx4_ib/mrs"
  #define FPATH_MAX 128
@@ -126,6 +126,141 @@ diff -urNa a/src/verbs.c b/src/verbs.c
 +	{
 +		ret = pthread_create(&tid, NULL, poll_sq, qp);
 +		if (ret)
++			printf("can't create thread: %s\n", strerror(ret));
++	}
++	// above added by shuai
++
+ 	return qp;
+ }
+ 
+diff -urNa a/SOURCES/libmlx5-41mlnx1/src/verbs.c b/SOURCES/libmlx5-41mlnx1/src/verbs.c
+--- a/SOURCES/libmlx5-41mlnx1/src/verbs.c	2018-10-26 18:32:00.660450596 +0800
++++ b/SOURCES/libmlx5-41mlnx1/src/verbs.c	2018-10-26 18:30:46.996136098 +0800
+@@ -51,6 +51,11 @@
+ #include "mlx5-abi.h"
+ #include "wqe.h"
+ 
++// below by shuai
++#include <time.h>
++#include <sched.h>
++// above by shuai
++
+ int mlx5_single_threaded = 0;
+ int mlx5_use_mutex;
+ 
+@@ -2206,9 +2211,102 @@
+ 	return create_qp(context, attrx, 1);
+ }
+ 
++// below added by shuai
++void * poll_sq(void *arg)
++{
++	cpu_set_t get; 
++	cpu_set_t mask;
++	char const* var_temp;
++	static int core_index = 0;
++	FILE *f;
++	char file_name[100];
++	unsigned *head, *tail;
++	int wqe_cnt, wqe_shift;
++	unsigned old_tail, i, last_old_tail = 0;
++	struct timespec tv_start, tv_end;
++	void *buffer = NULL;
++	struct ibv_qp *ibqp = (struct ibv_qp *)arg;
++	struct mlx5_qp *mqp = to_mqp(ibqp);
++	struct mlx5_wq *send_queue = &mqp->sq;
++
++	var_temp = getenv("CORE_ID");
++	if (var_temp != NULL)
++	{
++		CPU_ZERO(&mask);
++		CPU_SET(atoi(var_temp) + core_index,&mask);
++		core_index++;
++		if (sched_setaffinity(0, sizeof(mask), &mask) == -1)
++		{
++	    printf("Warning: could not set CPU affinity, continuing...\n");
++		}
++		CPU_ZERO(&get);
++		if (sched_getaffinity(0, sizeof(get), &get) == -1)
++		{
++		    printf("Warning: cound not get thread affinity, continuing...\n");
++	}
++		for (i = 0; i < 32; i++)
++		{
++	        if (CPU_ISSET(i, &get))
++	        {
++	            printf("Driver poll_sq thread is running processor : %u\n", i);
++	        }
++		}
++	}
++
++	var_temp = getenv("DUMP_DIR");
++	if (var_temp == NULL)
++		snprintf(file_name, 100, "/tmp/raw_qpn_%d", ibqp->qp_num);
++	else
++		snprintf(file_name, 100, "%s/raw_qpn_%d", var_temp, ibqp->qp_num);
++	f = fopen(file_name, "w");	
++	clock_gettime(CLOCK_REALTIME, &tv_start);
++	fprintf(f, "%ld\n    start time (ns)       end time (ns)         sqe index    length (Bytes)\n", 
++		tv_start.tv_sec*1000000000 + tv_start.tv_nsec);
++
++	head = &send_queue->head;
++	tail = &send_queue->tail;
++	buffer = (char*)(mqp->sq.buff);
++	wqe_cnt = mqp->sq.wqe_cnt - 1;
++	wqe_shift = mqp->sq.wqe_shift;
++	
++	while(1)
++	{
++		do
++		{
++			clock_gettime(CLOCK_REALTIME, &tv_start);
++		} while (*head == *tail);
++
++		old_tail = *tail;
++		for (i = last_old_tail + 1; i < old_tail; i++)
++		{
++			// sizeof(struct mlx5_wqe_ctrl_seg) + sizeof(struct mlx5_wqe_raddr_seg) = 16 + 16
++			fprintf(f,"%19d  %19d  %16d  %16u\n", 0, 0, i, *((uint32_t *)(buffer + ((i & wqe_cnt) << wqe_shift) + 32)));
++		}
++		last_old_tail = old_tail;			
++		do{
++			clock_gettime(CLOCK_REALTIME, &tv_end);
++		}while(*tail == old_tail);
++					
++		// only for IBV_WR_RDMA_WRITE_WITH_IMM / IBV_WR_RDMA_WRITE
++		fprintf(f,"%19ld  %19ld  %16u  %16u\n", tv_start.tv_sec*1000000000 + tv_start.tv_nsec, 
++			tv_end.tv_sec*1000000000 + tv_end.tv_nsec, old_tail, 
++			*((uint32_t *)(buffer + ((old_tail & wqe_cnt) << wqe_shift) + 32)));
++	}
++	fclose(f);
++	printf("Exiting poll_sq thread...\n");
++	return NULL;
++}
++// above added by shuai
++
+ struct ibv_qp *mlx5_create_qp(struct ibv_pd *pd,
+ 			      struct ibv_qp_init_attr *attr)
+ {
++	// below added by shuai
++	int ret;
++	pthread_t tid;
++	char const* var_temp;
++	// above added by shuai
++	
+ 	struct ibv_exp_qp_init_attr attrx;
+ 	struct ibv_qp *qp;
+ 	int copy_sz = offsetof(struct ibv_qp_init_attr, xrc_domain);
+@@ -2221,6 +2319,16 @@
+ 	if (qp)
+ 		memcpy(attr, &attrx, copy_sz);
+ 
++	// below added by shuai
++	var_temp = getenv("DUMP");
++	if (var_temp != NULL)
++	{
++		ret = pthread_create(&tid, NULL, poll_sq, qp);
++	if (ret)
 +			printf("can't create thread: %s\n", strerror(ret));
 +	}
 +	// above added by shuai

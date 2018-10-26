@@ -1,2 +1,2 @@
 sudo apt-get install -y python-tk
-sudo pip install numpy python-matplotlib python-openpyxl
+sudo pip install numpy matplotlib openpyxl
